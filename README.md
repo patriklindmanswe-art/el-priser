@@ -85,7 +85,9 @@ unless `--overwrite` is supplied.
 The workflow in `.github/workflows/log_prices.yml` runs automatically at
 `00:05` in `Europe/Stockholm` and can also be started with **Run workflow** in
 the Actions tab. GitHub Actions schedules use UTC, so the workflow listens at
-both relevant UTC times and skips the one that is not `00:05` in Stockholm.
+both relevant UTC times and runs when the first trigger starts between
+`00:00` and `00:30` in Stockholm. This tolerance handles GitHub Actions'
+occasional scheduling delay while still skipping the duplicate trigger.
 
 The workflow installs the dependencies, runs the collector, and commits new
 files below `data/` back to the repository. It uses the built-in

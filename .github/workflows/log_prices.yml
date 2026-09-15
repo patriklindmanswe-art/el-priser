@@ -27,13 +27,14 @@ jobs:
             exit 0
           fi
 
-          stockholm_time="$(TZ=Europe/Stockholm date '+%H:%M')"
-          if [ "$stockholm_time" = "00:05" ]; then
+          stockholm_hour="$(TZ=Europe/Stockholm date '+%H')"
+          stockholm_minute="$(TZ=Europe/Stockholm date '+%M')"
+          if [ "$stockholm_hour" = "00" ] && [ "$stockholm_minute" -le 30 ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "Running for Stockholm time $stockholm_time."
+            echo "Running for Stockholm time ${stockholm_hour}:${stockholm_minute}."
           else
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping scheduled run at Stockholm time $stockholm_time."
+            echo "Skipping scheduled run at Stockholm time ${stockholm_hour}:${stockholm_minute}."
           fi
 
       - name: Set up Python
