@@ -15,7 +15,7 @@ import os
 import sys
 import tempfile
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -123,6 +123,8 @@ def write_csv(records: list[dict[str, str]], output: Path, *, overwrite: bool) -
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", type=date.fromisoformat, help="Date to fetch (YYYY-MM-DD; defaults to today)")
+    parser.add_argument("--start-date", type=date.fromisoformat, help="First date in an inclusive range")
+    parser.add_argument("--end-date", type=date.fromisoformat, help="Last date in an inclusive range (defaults to today)")
     parser.add_argument("--data-dir", type=Path, default=Path(os.getenv("SE3_DATA_DIR", "data")))
     parser.add_argument("--url-template", default=os.getenv("SE3_URL_TEMPLATE", DEFAULT_URL_TEMPLATE))
     parser.add_argument("--timeout", type=float, default=float(os.getenv("SE3_TIMEOUT", "20")))
@@ -133,26 +135,58 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def fetch_day(args: argparse.Namespace, day: date) -> None:
+    """Fetch and save one local calendar day."""
+    url = args.url_template.format(year=day.year, month=day.month, day=day.day)
+    output = args.data_dir / f"{day.year:04d}" / f"{day.month:02d}" / f"{day.isoformat()}.csv"
+    payload = fetch_json(url, args.timeout, args.retries, args.backoff)
+    records = parse_prices(
+        payload,
+        day=day,
+        source=url,
+        retrieved_at=datetime.now(STOCKHOLM).isoformat(),
+    )
+    write_csv(records, output, overwrite=args.overwrite)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    day = args.date or datetime.now(STOCKHOLM).date()
-    url = args.url_template.format(year=day.year, month=day.month, day=day.day)
-    output = args.data_dir / f"{day.year:04d}" / f"{day.month:02d}" / f"{day.isoformat()}.csv"
-    try:
-        payload = fetch_json(url, args.timeout, args.retries, args.backoff)
-        records = parse_prices(
-            payload,
-            day=day,
-            source=url,
-            retrieved_at=datetime.now(STOCKHOLM).isoformat(),
-        )
-        write_csv(records, output, overwrite=args.overwrite)
-    except (PriceFetchError, OSError, ValueError) as exc:
-        LOGGER.error("%s", exc)
+    today = datetime.now(STOCKHOLM).date()
+    if args.date is not None and (args.start_date is not None or args.end_date is not None):
+        LOGGER.error("--date cannot be combined with --start-date or --end-date")
+        return 2
+
+    if args.date is not None:
+        start_date = end_date = args.date
+    elif args.start_date is not None:
+        start_date = args.start_date
+        end_date = args.end_date or today
+    elif args.end_date is not None:
+        LOGGER.error("--end-date requires --start-date")
+        return 2
+    else:
+        start_date = end_date = today
+
+    if start_date > end_date:
+        LOGGER.error("--start-date must not be after --end-date")
+        return 2
+
+    failures = 0
+    day = start_date
+    while day <= end_date:
+        try:
+            fetch_day(args, day)
+        except (PriceFetchError, OSError, ValueError) as exc:
+            failures += 1
+            LOGGER.error("%s: %s", day.isoformat(), exc)
+        day += timedelta(days=1)
+
+    if failures:
+        LOGGER.error("Completed with %d failed date(s)", failures)
         return 1
     return 0
 

@@ -1,6 +1,7 @@
 import csv
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 import fetch_se3_prices
 
@@ -56,3 +57,37 @@ def test_invalid_payload_is_rejected():
         assert "no price records" in str(exc)
     else:
         raise AssertionError("Expected PriceFetchError")
+
+
+def test_range_fetch_is_inclusive(tmp_path: Path):
+    args = fetch_se3_prices.build_parser().parse_args(
+        [
+            "--start-date",
+            "2026-09-14",
+            "--end-date",
+            "2026-09-15",
+            "--data-dir",
+            str(tmp_path),
+        ]
+    )
+    with patch.object(fetch_se3_prices, "fetch_day") as fetch_day:
+        assert fetch_se3_prices.main(
+            [
+                "--start-date",
+                "2026-09-14",
+                "--end-date",
+                "2026-09-15",
+                "--data-dir",
+                str(tmp_path),
+            ]
+        ) == 0
+    assert [call.args[1] for call in fetch_day.call_args_list] == [
+        date(2026, 9, 14),
+        date(2026, 9, 15),
+    ]
+
+
+def test_invalid_date_range_returns_usage_error():
+    assert fetch_se3_prices.main(
+        ["--start-date", "2026-09-15", "--end-date", "2026-09-14"]
+    ) == 2

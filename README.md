@@ -33,6 +33,17 @@ To fetch a specific date while testing:
 python fetch_se3_prices.py --date 2026-09-15
 ```
 
+To backfill an inclusive date range:
+
+```powershell
+python fetch_se3_prices.py --start-date 2025-08-01 --end-date 2026-09-15 --overwrite
+```
+
+The range command processes each date independently and reports every failed
+date. It returns exit code `1` if one or more dates could not be fetched, so a
+partial backfill is not mistaken for a complete one. Historical dates may be
+unavailable if the public API does not retain them.
+
 The script uses `Europe/Stockholm` to decide today's date. Network requests
 have a timeout and bounded exponential backoff retries. Expected API and
 connection failures are logged and return exit code `1`, rather than printing a
