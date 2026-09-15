@@ -1,0 +1,13 @@
+# Python bytecode and local test/tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local environments and editor settings
+.venv/
+venv/
+env/
+.idea/
+.vscode/
+
+# Keep generated CSV files under data/ tracked by GitHub Actions.
